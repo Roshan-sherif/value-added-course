@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { FiMoreVertical, FiSearch, FiPaperclip, FiMic, FiSmile } from 'react-icons/fi';
 import { IoCheckmarkDone } from 'react-icons/io5';
+import axios from 'axios';
 import './App.css';
 
 const App = () => {
@@ -48,16 +49,6 @@ const App = () => {
     },
   ]);
 
-  // Predefined responses
-  const aiResponses = {
-    greetings: ["Hello there!", "Hi! How can I assist you?", "Greetings! What can I do for you today?"],
-    help: ["I can answer questions, provide information, or just chat.", "My purpose is to assist you with various topics.", "I'm here to help with whatever you need."],
-    thanks: ["You're welcome!", "Happy to help!", "My pleasure!", "Anytime!"],
-    default: ["I'm not sure I understand. Could you rephrase that?", "Interesting point. Could you tell me more?", "I'm still learning. Can you ask me something else?"],
-    tech: ["Have you tried turning it off and on again?", "Make sure all cables are properly connected.", "Check for software updates that might fix the issue."],
-    travel: ["Paris is beautiful this time of year!", "Have you considered visiting Japan for a unique experience?", "Bali offers amazing beaches and culture."],
-  };
-
   // Scroll to bottom of chat
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -67,8 +58,50 @@ const App = () => {
     scrollToBottom();
   }, [chats, activeChat]);
 
+  // Generate AI response from API
+  const generateAIResponse = async (userMessage) => {
+    try {
+      const response = await axios.post('http://localhost:5000/api/chat', {
+        message: userMessage,
+        chat_id: activeChat
+      });
+      
+      const aiMessage = {
+        id: chats[activeChat].messages.length + 1,
+        text: response.data.response,
+        sender: 'ai',
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        status: 'read'
+      };
+
+      const updatedChats = [...chats];
+      updatedChats[activeChat].messages = [...updatedChats[activeChat].messages, aiMessage];
+      updatedChats[activeChat].lastMessage = response.data.response;
+      updatedChats[activeChat].time = 'Just now';
+      setChats(updatedChats);
+      
+    } catch (error) {
+      console.error('Error calling API:', error);
+      
+      // Fallback response if API fails
+      const aiMessage = {
+        id: chats[activeChat].messages.length + 1,
+        text: "Sorry, I'm having trouble connecting to the server.",
+        sender: 'ai',
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        status: 'read'
+      };
+
+      const updatedChats = [...chats];
+      updatedChats[activeChat].messages = [...updatedChats[activeChat].messages, aiMessage];
+      updatedChats[activeChat].lastMessage = "Connection error";
+      updatedChats[activeChat].time = 'Just now';
+      setChats(updatedChats);
+    }
+  };
+
   // Handle sending a message
-  const handleSendMessage = (e) => {
+  const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!message.trim()) return;
 
@@ -89,45 +122,9 @@ const App = () => {
     setMessage('');
     setTyping(true);
 
-    // Simulate AI response after a delay
-    setTimeout(() => {
-      generateAIResponse(message);
-      setTyping(false);
-    }, 1000 + Math.random() * 2000);
-  };
-
-  // Generate an AI response based on user input
-  const generateAIResponse = (userMessage) => {
-    let responseText = '';
-    const lowerCaseMessage = userMessage.toLowerCase();
-
-    if (lowerCaseMessage.includes('hi') || lowerCaseMessage.includes('hello')) {
-      responseText = aiResponses.greetings[Math.floor(Math.random() * aiResponses.greetings.length)];
-    } else if (lowerCaseMessage.includes('thank')) {
-      responseText = aiResponses.thanks[Math.floor(Math.random() * aiResponses.thanks.length)];
-    } else if (lowerCaseMessage.includes('help') || lowerCaseMessage.includes('what can you do')) {
-      responseText = aiResponses.help[Math.floor(Math.random() * aiResponses.help.length)];
-    } else if (lowerCaseMessage.includes('tech') || lowerCaseMessage.includes('computer') || lowerCaseMessage.includes('issue')) {
-      responseText = aiResponses.tech[Math.floor(Math.random() * aiResponses.tech.length)];
-    } else if (lowerCaseMessage.includes('travel') || lowerCaseMessage.includes('vacation') || lowerCaseMessage.includes('visit')) {
-      responseText = aiResponses.travel[Math.floor(Math.random() * aiResponses.travel.length)];
-    } else {
-      responseText = aiResponses.default[Math.floor(Math.random() * aiResponses.default.length)];
-    }
-
-    const aiMessage = {
-      id: chats[activeChat].messages.length + 1,
-      text: responseText,
-      sender: 'ai',
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      status: 'read'
-    };
-
-    const updatedChats = [...chats];
-    updatedChats[activeChat].messages = [...updatedChats[activeChat].messages, aiMessage];
-    updatedChats[activeChat].lastMessage = responseText;
-    updatedChats[activeChat].time = 'Just now';
-    setChats(updatedChats);
+    // Call the API for response
+    await generateAIResponse(message);
+    setTyping(false);
   };
 
   // Handle chat selection
